@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hikari Scanner Web</title>
+    <style>
+        :root { --pink: #ff4081; --bg: #fff5f7; }
+body { background: var(--bg); font-family: sans-serif; display: flex; justify-content: center; margin: 0; }
+.app-container { width: 100%; max-width: 450px; text-align: center; padding: 20px; }
+h1 { color: var(--pink); margin-bottom: 5px; }
+.comparison-area { display: flex; gap: 15px; justify-content: center; margin: 20px 0; }
+.card { background: white; padding: 10px; border-radius: 15px; box-shadow: 0 4px 15px rgba(255,64,129,0.1); width: 180px; }
+.card img { width: 100%; height: 200px; object-fit: contain; border-radius: 8px; }
+.btn { background: var(--pink); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+.fab { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--pink); color: white; padding: 15px 30px; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>图片去重助手</h1>
+        </header>
+
+        <div id="status">准备就绪，请选择文件夹</div>
+        
+        <div class="comparison-area">
+            <div class="card" id="cardA">
+                <span>图片 A</span>
+                <img id="imgA" src="" />
+            </div>
+            <div class="card" id="cardB">
+                <span>图片 B</span>
+                <img id="imgB" src="" />
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn main-btn" onclick="deleteImage('A')">留 B 删 A</button>
+            <button class="btn main-btn" onclick="deleteImage('B')">留 A 删 B</button>
+            <div class="sub-controls">
+                <button class="btn-text" onclick="prevPair()">← 上一组</button>
+                <button class="btn-text" onclick="nextPair()">跳过 →</button>
+            </div>
+        </div>
+
+        <label class="fab">
+            <input type="file" webkitdirectory directory multiple onchange="handleFiles(this.files)" hidden>
+            <span>选择文件夹</span>
+        </label>
+    </div>
+    <script>
+let duplicates = [];
+let currentIdx = 0;
+
+async function handleFiles(files) {
+    document.getElementById('status').innerText = "Hikari 正在计算哈希...";
+    const hashes = [];
+    
+    for (let file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const hash = await computePHash(file);
+        hashes.push({ file, hash, url: URL.createObjectURL(file) });
+    }
+
+    // 简单的对比算法
+    for (let i = 0; i < hashes.length; i++) {
+        for (let j = i + 1; j < hashes.length; j++) {
+            if (getDistance(hashes[i].hash, hashes[j].hash) < 8) {
+                duplicates.push([hashes[i], hashes[j]]);
+            }
+        }
+    }
+    showPair(0);
+}
+
+// 模拟 pHash (简易版：缩小图片取平均灰度)
+async function computePHash(file) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 8; canvas.height = 8;
+            ctx.drawImage(img, 0, 0, 8, 8);
+            const data = ctx.getImageData(0, 0, 8, 8).data;
+            let hash = "";
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = data[i] * 0.3 + data[i+1] * 0.59 + data[i+2] * 0.11;
+                hash += gray > 127 ? "1" : "0";
+            }
+            resolve(hash);
+        };
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+function getDistance(a, b) {
+    let dist = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) dist++;
+    return dist;
+}
+
+function showPair(idx) {
+    if (idx < duplicates.length) {
+        document.getElementById('imgA').src = duplicates[idx][0].url;
+        document.getElementById('imgB').src = duplicates[idx][1].url;
+        document.getElementById('status').innerText = `发现第 ${idx + 1}/${duplicates.length} 组`;
+    } else {
+        document.getElementById('status').innerText = "扫描完成！";
+    }
+}
+    </script>
+</body>
+</html>
